@@ -1,0 +1,258 @@
+---
+title: "Прогнозирование цен на недвижимость в Бостоне"
+output: html_document
+---
+
+
+```
+mlbench
+caret, car, corrplot
+```
+
+
+## Задачи
+
+1. Построим линейную регрессионную модель.
+2. Построим модель случайного леса.
+3. Сравним точность прогнозов обеих моделей по RMSE.
+
+
+## Описание данных
+
+The Boston Housing Price dataset is freely available for download from the [UCI Machine Learning Repository](https://archive.ics.uci.edu/ml/datasets/Housing). The dataset consists of 506 observations of 14 attributes (13 непрерывных и 1 бинарная). The median value of house price in $1000s, denoted by MEDV, is the outcome or the dependent variable in our model. 
+
+Below is a brief description of each feature and the outcome in our dataset:
+
+* CRIM     – per capita crime rate by town
+* ZN     – proportion of residential land zoned for lots over 25,000 sq.ft
+* INDUS     – proportion of non-retail business acres per town
+* CHAS     – Charles River dummy variable (1 if tract bounds river; else 0)
+* NOX     – nitric oxides concentration (parts per 10 million)
+* RM     – average number of rooms per dwelling
+* AGE     – proportion of owner-occupied units built prior to 1940
+* DIS     – weighted distances to five Boston employment centres
+* RAD     – index of accessibility to radial highways
+* TAX     – full-value property-tax rate per $10,000
+* PTRATIO     – pupil-teacher ratio by town
+* B     – 1000(Bk - 0.63)^2 where Bk is the proportion of blacks by town
+* LSTAT     – % lower status of the population
+* MEDV     – Median value of owner-occupied homes in $1000’s
+
+Источник данных: набор данных BostonHousing из пакета R mlbench.
+
+Создатель набора: Harrison, D. and Rubinfeld, D.L. 'Hedonic prices and the demand for clean air', J. Environ. Economics & Management, vol.5, 81-102, 1978.
+
+
+## Импорт
+
+```{r}
+library(mlbench)
+data(BostonHousing)
+
+str(BostonHousing)
+```
+
+
+## Разведка
+
+```{r}
+summary(BostonHousing)
+```
+```{r}
+hist(BostonHousing$medv)
+boxplot(BostonHousing$medv, horizontal = T)
+```
+
+1. Медианное значение цены на жилье смещено вправо. Возможно, при выполнении регресии `medv` придется прологарифмировать. 
+2. На правом краю распределения возможны выбросы. Это нужно учесть при построении линейной регрессионной модели.
+
+```{r}
+suppressPackageStartupMessages(library(caret))
+```
+
+Пакет `caret` понадобится не только для построения моделей, но и для разведки.
+
+Проверим, нет ли переменных с близкой к нулю дисперсией. Такие переменные неинформативны.
+
+```{r}
+nzv <- nearZeroVar(BostonHousing, saveMetrics = TRUE)
+sum(nzv$nzv)
+```
+
+Выделим числовые переменные и рассчитаем корреляцию между ними
+
+```{r}
+bm <- BostonHousing[,!names(BostonHousing) %in% c("chas","medv")]
+cor_mat <- cor(bm)
+corrplot::corrplot(cor_mat)
+```
+
+Присутствуют высокие положительные корреляции между `indus` и `nox`, `indus` и `tax`, `tax` и `rad`, а также несколько отрицательных корреляций.
+
+
+## Линейная модель №1
+
+Первая модель будет использовать все переменные.
+
+Разделим данные на обучающую и тестовую выборки.
+
+```{r}
+set.seed(1234)
+bh_index <- createDataPartition(BostonHousing$medv, p = .75, list = FALSE)
+bh_tr <- BostonHousing[ bh_index, ]
+bh_te <- BostonHousing[-bh_index, ]
+```
+
+Обучим модель и вычислим ошибку на тестовой выборке.
+
+Напомним, что
+
+$$
+RMSE = \sqrt \frac{\sum_{i = 1}^{n} (y_{pred,i}-y_{act,i})^2}{n}.
+$$
+
+```{r}
+set.seed(5678)
+lm_fit.1 <- train(medv ~ .,
+                  data = bh_tr, 
+                  method = "lm")
+summary(lm_fit.1)
+
+bh_pred <- predict(lm_fit.1, bh_te)
+
+postResample(pred = bh_pred, obs = bh_te$medv)
+```
+
+
+## Линейная модель №2
+
+В качестве отклика используем логарифм `medv`.
+
+```{r}
+set.seed(5678)
+lm_fit.2 <- train(log(medv) ~ .,
+                  data = bh_tr, 
+                  method = "lm")
+summary(lm_fit.2)
+
+bh_pred <- predict(lm_fit.2, bh_te)
+
+postResample(pred = exp(bh_pred), obs = bh_te$medv)
+```
+
+Увеличилась точность прогноза и коэффициент детерминации.
+
+Настало время вспомнить про корреляцию между переменными.
+
+
+## Линейная модель №3
+
+Найдем переменные, которые необходимо удалить из модели для снижения попарной корреляции
+
+```{r}
+names(bm)[findCorrelation(cor_mat, cutoff = 0.9)]
+```
+
+Кроме того, у переменной `tax` высокий VIF
+
+```{r}
+car::vif(lm(medv ~ . , data = bh_tr))
+```
+
+Удаляем `tax` из модели
+
+```{r}
+set.seed(5678)
+lm_fit.3 <- train(log(medv) ~ . -tax,
+                  data = bh_tr, 
+                  method = "lm")
+summary(lm_fit.3)
+
+bh_pred <- predict(lm_fit.3, bh_te)
+
+postResample(pred = exp(bh_pred), obs = bh_te$medv)
+```
+
+Ошибка снова снизилась, а $R^2$ вырос. 
+
+Коэффициенты модели `zn`, `indus` и `age` статистически незначимы и могут оказаться нулевыми. Кроме того, они одни из самых малых по величине, а значит и по влиянию 
+
+```{r}
+round(lm_fit.3$finalModel$coefficients, 2)
+```
+
+
+## Линейная модель №4
+
+Удалим из модели `tax`, `zn`, `indus` и `age`.
+
+```{r}
+set.seed(5678)
+lm_fit.4 <- train(log(medv) ~ . -tax-zn-indus-age,
+                  data = bh_tr, 
+                  method = "lm")
+summary(lm_fit.4)
+
+bh_pred <- predict(lm_fit.4, bh_te)
+
+postResample(pred = exp(bh_pred), obs = bh_te$medv)
+```
+
+Ошибка увеличилась, но незначительно. Зато все коэффициенты модели стали статистически значимыми.
+
+```{r}
+plot(exp(bh_pred), bh_te$medv, xlab = "Predicted Price", ylab = "Actual Price", col="blue")
+```
+
+
+## Анализ остатков
+
+```{r}
+layout(matrix(c(1,2,3,4),2,2))
+plot(lm_fit.4$finalModel)
+```
+
+
+## Выводы из линейной модели
+
+Согласно итоговой модели цены на жилье выше в районах с более низким уровнем преступности и более низким соотношением учеников и учителей. Цены на жилье выше на берегах реки Чарльз, а дома с большим количеством комнат стоят дороже. Цены на жилье существенно снижаются в районах с более высоким уровнем загрязнения атмосферы (оксидом азота). Можно предположить, что уровень загрязнения выше по мере приближения к основным центрам занятости.
+
+
+## Модель случайного леса
+
+По всем переменным.
+
+```{r}
+ctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+
+rf_fit.1 <- train(medv ~ .,
+                  bh_tr,
+                  method = "ranger",
+                  trControl = ctrl)
+rf_fit.1
+
+bh_pred <- predict(rf_fit.1, bh_te)
+postResample(pred = bh_pred, obs = bh_te$medv)
+```
+
+По переменным, отобранным для итоговой линейной модели, с настройкой параметров случайного леса.
+
+```{r}
+rf_grid <- expand.grid(mtry = c(3:7),
+                       splitrule = c("variance", "extratrees"),
+                       min.node.size = c(3,5,7)
+                       )
+
+rf_fit.2 <- train(medv ~ . -tax-zn-indus-age,
+                  bh_tr,
+                  method = "ranger",
+                  trControl = ctrl,
+                  tuneGrid = rf_grid)
+rf_fit.2
+
+bh_pred <- predict(rf_fit.2, bh_te)
+postResample(pred = bh_pred, obs = bh_te$medv)
+```
+
+В обоих вариантах модели на основе случайного леса превосходят линейную регрессию по точности прогноза. При этом не используется ни преобразование отклика, ни выделение значимых переменных.
+

@@ -1,0 +1,28 @@
+% Предотвращает предупреждения “Font shape `OT1/cmss/m/n' in size <4> not available” и “Size substitutions with differences”
+\let\Tiny=\tiny
+\let\TINY=\tiny
+% Предотвращает появление предупреждений hyperref 
+\hypersetup{unicode=true}
+%
+\setbeamercovered{transparent}
+% отображение номера в нижнем правом углу слайда
+\setbeamerfont{footline}{size=\normalsize}
+\makeatletter % в нижней части слайда отображается только его номер 
+\setbeamertemplate{footline}
+{
+  \leavevmode%
+  \hbox{%
+  \begin{beamercolorbox}[wd=\paperwidth,ht=2.25ex,dp=1ex,right]{date in head/foot}%
+    \usebeamerfont{date in head/foot}\insertframenumber\hspace*{2ex} 
+  \end{beamercolorbox}}%
+  \vskip0pt%
+}
+\makeatother
+% Удаляем слово 'Figure' из заголовка рисунка
+%\setbeamertemplate{caption}{\insertcaption\par}
+%\captionsetup{labelformat=empty,labelsep=none}
+%
+\DeclareMathOperator*{\argmin}{argmin}
+% Две колонки
+\newcommand{\bcols}{\begin{columns}}
+\newcommand{\ecols}{\end{columns}}

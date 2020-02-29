@@ -1,0 +1,14 @@
+Данные о пассажирских авиаперевозках
+=====================================
+
+Международные пассажирские авиаперевозки. В тысячах человек, по месяцам. С января 1949 по декабрь 1960 года.
+
+Название файла с данными: series_g.csv
+
+1. date - Дата
+2. series_g - Объем пассажирских авиаперевозок
+
+Источники данных: 
+
+1. O.D.Anderson, Time Series Analysis and Forecasting: the Box-Jenkins Approach. 1976, Butterworth.
+2. G.E.P.Box and G.M.Jenkins The Time Series Analysis: Forecasting and Control. 1976, Holden-Day

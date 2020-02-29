@@ -1,0 +1,89 @@
+#### Аппроксимация точек многочленом
+#### Вариант 1: плохо обусловленная матрица данных
+
+## Шаг 0. Создаем данные
+
+x <- seq(0, 6, 0.5)
+
+set.seed(1234)
+y <- sin(x) + rnorm(length(x), 0, 0.8)
+
+plot(x, y, type="p", col="red")
+lines(x, sin(x), col="blue")
+
+# Создаем обучающую выборку
+
+# степень полинома
+polinom.power <- 10
+
+train <- data.frame(x0=rep(1,length(x)), 
+                    x1=x, x2=x^2, x3=x^3, x4=x^4, x5=x^5, 
+                    x6=x^6, x7=x^7, x8=x^8, x9=x^9, x10=x^10, y=y)
+
+# Создаем тестовую выборку
+
+x.test <- seq(min(x), max(x), 0.01)
+
+test <- data.frame(x0=rep(1,length(x.test)), 
+                   x1=x.test, x2=x.test^2, x3=x.test^3, x4=x.test^4, 
+                   x5=x.test^5, x6=x.test^6, x7=x.test^7, 
+                   x8=x.test^8, x9=x.test^9, x10=x.test^10)
+
+## Шаг 1. Используем процедуру lm
+
+res.lm <- lm(y~.-x0, data=train)
+
+y.pred <- predict.lm(res.lm, test)
+
+plot(x.test, y.pred, type="l", col = "blue")
+points(x, y, col="red")
+
+# Переобучение
+
+## Шаг 2. Получим beta прямыми вычислениями, не привлекая функцию lm
+
+# В чем ошибка?
+X <- train[ ,-ncol(train)]
+y <- train[ , ncol(train)]
+beta <- solve(t(X) %*% X, t(X) %*% y)
+# Error in t(X) %*% y : requires numeric/complex matrix/vector arguments
+
+# Нужны матрицы и векторы, а не таблицы.
+
+X <- as.matrix(train[ ,-ncol(train)])
+y <- as.vector(train[ , ncol(train)])
+beta <- solve(t(X) %*% X, t(X) %*% y)
+# Error in solve.default(t(X) %*% X, t(X) %*% y) : 
+#   system is computationally singular: reciprocal condition number = 2.68983e-22
+
+## Шаг 3. С регуляризацией
+
+# пока lambda выбираем наобум
+# lambda <- 1 слишком мало
+lambda <- 5
+
+# не учитываем столбец с y
+num.parameters <- ncol(train)-1
+# Создаем матрицу lambda*D
+lambdaD <- lambda * diag(num.parameters)
+lambdaD[1,1] <- 0
+
+# Вычислим beta с регуляризованной матрицей
+beta.r <- solve((t(X) %*% X + lambdaD), t(X) %*% y)
+
+# Матрица тестовых данных
+X.test <- as.matrix(data.test)
+
+# Прогноз на тестовых данных
+y.pred <- X.test %*% beta.r
+
+plot(x, y, type="p", col="red")
+lines(x.test, y.pred, col = "blue")
+
+
+
+
+  
+  
+  
+  

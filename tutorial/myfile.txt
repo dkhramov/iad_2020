@@ -1,0 +1,4 @@
+"Height" "Weight" "Age"
+"John" 180.5 75 18
+"Mary" 163.7 48 17
+"Sam" 177.2 72 17
